@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+python-multipart
+qdrant-client
+openai-clip
+torch
+torchvision
+Pillow
+ultralytics
+datasets
+anthropic
+streamlit
+requests
+python-dotenv
+numpy
+pytest
