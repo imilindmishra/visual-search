@@ -31,6 +31,20 @@ class ProductResult(BaseModel):
     description: str
     image_b64: str | None = None
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "MEN Denim id 00005724",
+                "category": "MEN / denim",
+                "color": "blue",
+                "price": 1234.56,
+                "score": 0.0421,
+                "description": "men denim blue slim fit jeans",
+                "image_b64": "/9j/4AAQSkZJRg... (truncated)",
+            }
+        }
+    }
+
 
 class SearchResponse(BaseModel):
     """Response payload for the /search endpoint."""
@@ -39,6 +53,18 @@ class SearchResponse(BaseModel):
     intent: str
     query_parsed: dict
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "products": [ProductResult.model_config["json_schema_extra"]["example"]],
+                "answer": "I'd recommend the MEN Denim id 00005724 — closest visual match "
+                          "and matches your 'blue jeans' query at a reasonable price point.",
+                "intent": "recommend",
+                "query_parsed": {"color": "blue", "category": "denim", "gender": "men"},
+            }
+        }
+    }
+
 
 @app.get("/health")
 def health():
@@ -46,12 +72,33 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/search", response_model=SearchResponse)
+@app.post(
+    "/search",
+    response_model=SearchResponse,
+    summary="Search the catalog by image (+ optional text)",
+    description=(
+        "Multipart form upload. Encodes the image (and text query, if given) with CLIP, "
+        "retrieves visually + semantically similar products from Qdrant, fuses rankings with "
+        "RRF, dedupes by base product id, and asks Claude to advise on the results.\n\n"
+        "**Example request (curl):**\n"
+        "```bash\n"
+        "curl -X POST http://localhost:8000/search \\\n"
+        "  -F \"file=@product.jpg\" \\\n"
+        "  -F \"text_query=blue jeans for men\" \\\n"
+        "  -F \"intent=recommend\" \\\n"
+        "  -F \"use_yolo=true\"\n"
+        "```"
+    ),
+)
 async def search(
-    file: UploadFile = File(...),
-    text_query: str = Form(""),
-    intent: str = Form("recommend"),
-    use_yolo: bool = Form(False),
+    file: UploadFile = File(..., description="Product photo (jpg/jpeg/png)"),
+    text_query: str = Form("", description="Optional free-text context", examples=["blue jeans for men"]),
+    intent: str = Form(
+        "recommend",
+        description="What kind of advice to ask Claude for",
+        examples=["recommend", "compare", "authentic"],
+    ),
+    use_yolo: bool = Form(False, description="Auto-crop the product region with YOLO before encoding", examples=[False]),
 ):
     """Search the catalog by image (+ optional text), rank with RRF, and ask Claude to advise on the results."""
     logger.info("search request: text_query=%r intent=%r use_yolo=%s", text_query, intent, use_yolo)
